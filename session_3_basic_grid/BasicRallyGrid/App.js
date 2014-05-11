@@ -8,43 +8,103 @@ Ext.define('CustomApp', {
 
     // Entry Point to App
     launch: function() {
-
-      console.log('our first app');     // see console api: https://developers.google.com/chrome-developer-tools/docs/console-api
-      this._loadData();                 // we need to prefix with 'this.' so we call a method found at the app level.
+		this.pullDownContainer = Ext.create('Ext.container.Container', {
+			layout: {
+				type: 'hbox',
+				align:'stretch'
+			}
+		});
+		this.add(this.pullDownContainer);
+		this._loadIterations();
     },
-
+	
+	_loadIterations: function() {
+		this.iterComboBox = Ext.create('Rally.ui.combobox.IterationComboBox', {
+			fieldLabel : 'Iteration',
+			labelAlign: 'right',
+			width: '250',
+			listeners : {
+				ready : function(comboBox){
+					this._loadStates();
+				},
+				select : function(comboBox, records){
+					this._loadData();
+				},
+				scope: this
+			}
+		});
+		this.pullDownContainer.add(this.iterComboBox);
+	},
+	
+	_loadStates: function() {
+		this.stateComboBox = Ext.create('Rally.ui.combobox.FieldValueComboBox', {
+			fieldLabel : 'State',
+			model:'Task',
+			field:'State',
+			labelAlign: 'right',
+			listeners : {
+				ready : function(comboBox){
+					this._loadData();
+				},
+				select : function(comboBox, records){
+					this._loadData();
+				},
+				scope: this
+			}
+		});
+		this.pullDownContainer.add(this.stateComboBox);
+	},
+	
     // Get data from Rally
     _loadData: function() {
-
-      var myStore = Ext.create('Rally.data.wsapi.Store', {
-          model: 'User Story',
-          autoLoad: true,                         // <----- Don't forget to set this to true! heh
-          listeners: {
-              load: function(myStore, myData, success) {
-                  console.log('got data!', myStore, myData);
-                  this._loadGrid(myStore);      // if we did NOT pass scope:this below, this line would be incorrectly trying to call _createGrid() on the store which does not exist.
-              },
-              scope: this                         // This tells the wsapi data store to forward pass along the app-level context into ALL listener functions
-          },
-          fetch: ['FormattedID', 'Name', 'ScheduleState']   // Look in the WSAPI docs online to see all fields available!
-        });
+	  var selectedIterRef = this.iterComboBox.getRecord().get('_ref');
+	  var selectedState = this.stateComboBox.getRecord().get('value');
+	  var myFilters =  [
+			{
+				property:'Iteration',
+				value:selectedIterRef
+			},
+			{
+				property:'State',
+				value:selectedState
+			}
+		  ];
+		  
+		if(this.taskStore){
+			this.taskStore.setFilter(myFilters);
+			this.taskStore.load();
+		}
+		else
+		{
+			this.taskStore = Ext.create('Rally.data.wsapi.Store', {
+				  model: 'Task',
+				  autoLoad: true,                         // <----- Don't forget to set this to true! heh
+				  filters : myFilters,
+				  listeners: {
+					  load: function(myStore, myData, success) {
+						  console.log('got data!', myStore, myData);
+						  if(!this.myGrid)
+						  {
+							this._createGrid(myStore);      // if we did NOT pass scope:this below, this line would be incorrectly trying to call _createGrid() on the store which does not exist.
+						  }
+					  },
+					  scope: this                         // This tells the wsapi data store to forward pass along the app-level context into ALL listener functions
+				  },
+				  fetch: ['FormattedID', 'Name', 'Iteration', 'Actuals','State']   // Look in the WSAPI docs online to see all fields available!
+			});
+		}
 
     },
 
     // Create and Show a Grid of given stories
-    _loadGrid: function(myStoryStore) {
-
-      var myGrid = Ext.create('Rally.ui.grid.Grid', {
-        store: myStoryStore,
-        columnCfgs: [         // Columns to display; must be the same names specified in the fetch: above in the wsapi data store
-          'FormattedID', 'Name', 'ScheduleState'
-        ]
-      });
-
-      this.add(myGrid);       // add the grid Component to the app-level Container (by doing this.add, it uses the app container)
-
-      console.log('what is this?', this);
-
-    }
+    _createGrid: function(myStoryStore) {
+		this.myGrid = Ext.create('Rally.ui.grid.Grid', {
+			store: myStoryStore,
+			columnCfgs: [         // Columns to display; must be the same names specified in the fetch: above in the wsapi data store
+			'FormattedID', 'Name', 'Iteration', 'Actuals','State'
+			]
+		});
+		this.add(this.myGrid);       // add the grid Component to the app-level Container (by doing this.add, it uses the app container)
+	}
 
 });
